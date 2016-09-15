@@ -1,0 +1,89 @@
+
+DECLARE @reportScheduleNextRun TABLE (job_id VARCHAR(500), NextRunTime DATETIME);
+
+INSERT INTO @reportScheduleNextRun
+SELECT js.job_id,
+CONVERT(DATETIME,
+SUBSTRING(CONCAT(
+CONVERT(DATE,
+IIF( js.next_run_date = 0, '2010-01-01',
+	CONCAT(
+	LEFT(CONVERT(VARCHAR(8), js.next_run_date), 4), '-',
+	SUBSTRING(CONVERT(VARCHAR(8), js.next_run_date), 5, 2), '-',
+	SUBSTRING(CONVERT(VARCHAR(8), js.next_run_date), 7, 2)
+	))), ' ',
+CONVERT(TIME,
+CASE 
+	WHEN js.next_run_time = 0 THEN '00:00:00'
+	WHEN LEN(js.next_run_time) = 5 THEN 
+									CONCAT(0+
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 1, 1), ':',
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 2, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 4, 2)
+										)
+	WHEN LEN(js.next_run_time) = 6 THEN 
+									CONCAT(
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 1, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 3, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 5, 2)
+										)
+END)
+), 1, 19)) 
+AS NextRunTime
+FROM msdb.dbo.sysjobschedules js;
+
+
+
+
+SELECT 
+j.job_id AS jobID, 
+j.name AS jobName, 
+c.Name AS reportName,
+c.Path AS reportServerLocation,
+j.enabled AS sqlJobEnabled,
+sch.State AS reportSubscriptionStateValue,
+CASE 
+	WHEN sch.State = 1 THEN 'Expired'
+	WHEN sch.State = 3 THEN 'Active'
+END AS reportSubscriptionStateValue,
+sub.DeliveryExtension AS subscriptionType,
+sch.EventType AS subscriptionEventType,
+CASE   
+	WHEN sch.RecurrenceType = 1 THEN 'Once'  
+	WHEN sch.RecurrenceType = 2 THEN 'Hourly'  
+	WHEN sch.RecurrenceType = 3 THEN 'Daily'  
+	WHEN sch.RecurrenceType = 4 THEN 'Weekly'  
+	WHEN sch.RecurrenceType IN (5,6) THEN 'Monthly'    
+END AS subscriptionSchedule, 
+CASE 
+	WHEN Daysofweek & POWER(2, 0) = POWER(2,0) THEN 'Sun,' ELSE '' END +  
+		CASE WHEN Daysofweek & POWER(2, 1) = POWER(2,1) THEN 'Mon,' ELSE '' END +  
+			CASE WHEN Daysofweek & POWER(2, 2) = POWER(2,2) THEN 'Tue,' ELSE '' END +  
+				CASE WHEN Daysofweek & POWER(2, 3) = POWER(2,3) THEN 'Wed,' ELSE '' END +  
+					CASE WHEN Daysofweek & POWER(2, 4) = POWER(2,4) THEN 'Thu,' ELSE '' END +  
+						CASE WHEN Daysofweek & POWER(2, 5) = POWER(2,5) THEN 'Fri,' ELSE '' END +  
+							CASE WHEN Daysofweek & POWER(2, 6) = POWER(2,6) THEN 'Sat,' ELSE '' 
+END  AS subscriptionDailyScheduleRunsEvery,
+CASE   
+	WHEN MonthlyWeek <= 4 THEN CONVERT(VARCHAR(2),MonthlyWeek )  
+	WHEN MonthlyWeek = 5 THEN 'Last'  
+	ELSE ''  
+END AS subscriptionMonthlyScheduleRunsEvery,
+ISNULL((SELECT rss.SettingValue FROM DBA_Tools.dbo.vwReportSubscribers rss WHERE rss.SettingName = 'TO' AND rss.SubscriptionID = rs.SubscriptionID AND rss.Report_OID = rs.ReportID), '') AS toEmail,
+ISNULL((SELECT rss.SettingValue FROM DBA_Tools.dbo.vwReportSubscribers rss WHERE rss.SettingName = 'CC' AND rss.SubscriptionID = rs.SubscriptionID AND rss.Report_OID = rs.ReportID), '') AS ccEmail,
+ISNULL((SELECT rss.SettingValue FROM DBA_Tools.dbo.vwReportSubscribers rss WHERE rss.SettingName = 'BCC' AND rss.SubscriptionID = rs.SubscriptionID AND rss.Report_OID = rs.ReportID), '') AS bccEmail,
+ISNULL((SELECT rss.SettingValue FROM DBA_Tools.dbo.vwReportSubscribers rss WHERE rss.SettingName = 'PATH' AND rss.SubscriptionID = rs.SubscriptionID AND rss.Report_OID = rs.ReportID), '') AS fileLocation,
+
+sch.StartDate AS ReportScheduleStarted,
+sch.LastRunTime AS ReportScheduleLastRun,
+	sub.LastStatus AS ReportScheduleLastRunStatus,
+rsnr.NextRunTime,
+sch.EndDate AS ReportScheduleEndDate
+FROM ReportServer.dbo.ReportSchedule rs 
+LEFT JOIN msdb.dbo.sysjobs j ON j.name = rs.ScheduleID
+	LEFT JOIN @reportScheduleNextRun rsnr ON rsnr.job_id = j.job_id
+LEFT JOIN ReportServer.dbo.Catalog c ON rs.ReportID = c.ItemID 
+LEFT JOIN ReportServer.dbo.Subscriptions sub ON sub.SubscriptionID = rs.SubscriptionID AND sub.Report_OID = rs.ReportID
+LEFT JOIN ReportServer.dbo.Schedule sch ON sch.ScheduleID = rs.ScheduleID
+WHERE j.category_id = 100;
+
