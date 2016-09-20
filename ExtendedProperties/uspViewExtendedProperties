@@ -1,0 +1,32 @@
+CREATE PROC uspViewExtendedProperties  @dbName VARCHAR(150),  @tableName VARCHAR(150) AS
+/******************************************************************************
+NAME: uspCreateAddExtendedPropertyStatement
+
+PURPOSE: TO EASILY VIEW THE EXTENDED PROPERTIES FOR COLUMNS ON A PARTICULAR TABLE 
+
+REVISIONS:
+
+Ver		Date		Author						Description
+-------	---------	-------------------------	-----------------------------------
+1.0		09/20/2016	J.STEVENS					1. CREATED THIS PROC
+******************************************************************************/	
+BEGIN
+DECLARE @sql VARCHAR(MAX) = '
+--SET THE DATABASE TO USE
+USE ['+@dbName+'];
+--MAIN QUERY
+SELECT 
+'''+@dbName+''' AS dbName, 
+t.name AS tableName, 
+c.name AS columnName,
+c.column_id AS columnID,
+ep.name AS extendedPropretyName, 
+ep.value AS extendedPropertyValue
+FROM sys.tables t
+JOIN sys.columns c ON c.object_id = t.object_id
+JOIN sys.extended_properties ep ON ep.major_id = t.object_id and ep.minor_id = c.column_id
+WHERE t.name =  '''+@tableName+'''
+ORDER BY t.name, c.column_id;
+'
+EXEC (@sql)
+END
