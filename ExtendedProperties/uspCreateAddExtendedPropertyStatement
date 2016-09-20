@@ -1,0 +1,44 @@
+CREATE PROC [dbo].[uspCreateAddExtendedPropertyStatement]  @dbName VARCHAR (150),  @tableName VARCHAR (150) AS 
+/******************************************************************************
+NAME: uspCreateAddExtendedPropertyStatement
+
+PURPOSE: TO EASILY CREATE THE ADD EXTENDED PROPERTY STATEMENT FOR COLUMNS ON A PARTICULAR TABLE 
+
+REVISIONS:
+
+Ver		Date		Author						Description
+-------	---------	-------------------------	-----------------------------------
+1.0		07/06/2016	J.STEVENS					1. CREATED THIS PROC
+													TICKET# PRJTASK-10797
+******************************************************************************/	
+
+BEGIN
+DECLARE @sql VARCHAR (MAX);
+SET @sql = '
+--SET THE DATABASE TO USE
+USE ['+@dbName+'];
+--MAIN QUERY
+SELECT
+c.column_id AS add_extended_property_id,
+c.name AS columnName,
+t.name AS tableName,
+--CREATE THE STATEMENT EASILY USE CHAR(39) TO HELP REDUCE THE APOSTROPHE CONFUSION
+REPLACE(
+	''
+	EXEC sp_addextendedproperty @name = ''+CHAR(39)+''Description''+CHAR(39)+'',  @value = ''+CHAR(39)+''''+CHAR(39)+'' , 
+	@level0type = ''+CHAR(39)+''Schema''+CHAR(39)+'', @level0name = ''+CHAR(39)+''+''+s.name+''+''+CHAR(39)+'',  
+	@level1type = ''+CHAR(39)+''Table''+CHAR(39)+'',  @level1name = ''+CHAR(39)+''+''+t.name+''+''+CHAR(39)+'',  
+	@level2type = ''+CHAR(39)+''Column''+CHAR(39)+'', @level2name = ''+CHAR(39)+''+''+c.name+''+''+CHAR(39)+''; 
+	'' ,
+	''+'', ''''
+	)AS add_extendedproperty_statement
+
+FROM sys.tables t 
+	JOIN sys.columns c ON c.object_id = t.object_id
+	JOIN sys.schemas s ON s.schema_id = t.schema_id
+--NARROW DOWN TO THE HELP WE WANT TO ISOLATE
+WHERE t.name = '''+@tableName+'''
+ORDER BY c.column_id ASC;
+'
+EXEC (@sql)
+END
