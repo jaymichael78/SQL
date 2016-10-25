@@ -1,0 +1,24 @@
+SELECT  p.spid ,
+        p.kpid ,
+        p.blocked AS blocked_by ,
+        p.waittime ,
+        p.lastwaittype ,
+        DB_NAME(p.dbid) AS DBName ,
+        p.cpu ,
+        p.physical_io ,
+        p.login_time ,
+        p.last_batch ,
+        p.open_tran ,
+        p.status ,
+        p.hostname ,
+        p.program_name ,
+        p.cmd ,
+        p.nt_domain ,
+        p.nt_username ,
+        p.net_library ,
+        p.loginame,
+  t.text AS sql_stmt
+FROM    SYS.sysprocesses p
+CROSS APPLY sys.dm_exec_sql_text(sql_handle) t
+--WHERE t.text LIKE '%vwClusterHealth%'
+--where  spid > 50 and blocked <> 0
