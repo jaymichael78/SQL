@@ -73,8 +73,8 @@ LEFT JOIN js ON js.job_id = j.job_id
 LEFT JOIN jh ON jh.job_id = j.job_id
 LEFT JOIN msdb.dbo.sysjobsteps jst ON jst.job_id = j.job_id
 WHERE j.category_id <> 100
-AND jh.start_execution_date >= GETDATE()-1
-AND Js.NextRunTime > GETDATE()
+--AND jh.start_execution_date >= GETDATE()-1
+--AND Js.NextRunTime > GETDATE()
 ) a
 GROUP BY 
 job_id,
