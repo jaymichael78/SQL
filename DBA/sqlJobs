@@ -1,0 +1,103 @@
+DECLARE @jobInfo TABLE (job_id VARCHAR(250), job_name VARCHAR(250), job_enabled INT, job_step_id INT, job_step VARCHAR(250),  LastRunTime DATETIME, RunStatus INT, NextRunTime DATETIME);
+
+--Non-Report Job Schedule 
+WITH js AS (
+SELECT js.job_id,
+CONVERT(DATETIME,
+SUBSTRING(CONCAT(
+CONVERT(DATE,
+IIF( js.next_run_date = 0, '2010-01-01',
+	CONCAT(
+	LEFT(CONVERT(VARCHAR(8), js.next_run_date), 4), '-',
+	SUBSTRING(CONVERT(VARCHAR(8), js.next_run_date), 5, 2), '-',
+	SUBSTRING(CONVERT(VARCHAR(8), js.next_run_date), 7, 2)
+	))), ' ',
+CONVERT(TIME,
+CASE 
+	WHEN js.next_run_time = 0 THEN '00:00:00'
+	WHEN LEN(js.next_run_time) = 5 THEN 
+									CONCAT(0+
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 1, 1), ':',
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 2, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(5), js.next_run_time), 4, 2)
+										)
+	WHEN LEN(js.next_run_time) = 6 THEN 
+									CONCAT(
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 1, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 3, 2), ':',
+										SUBSTRING(CONVERT(VARCHAR(6), js.next_run_time), 5, 2)
+										)
+END)
+), 1, 19)) 
+AS NextRunTime
+FROM msdb.dbo.sysjobschedules js
+),
+jh AS (
+SELECT 
+ja.job_id,
+ja.start_execution_date,
+ja.job_history_id,
+jh.step_id,
+jh.step_name,
+jh.sql_message_id,
+jh.message,
+jh.run_status
+FROM msdb.dbo.sysjobactivity ja
+LEFT JOIN msdb.dbo.sysjobhistory jh ON jh.instance_id = ja.job_history_id
+WHERE ja.start_execution_date >= GETDATE()-1)
+
+INSERT INTO @jobInfo
+SELECT 
+job_id,
+job_name,
+job_enabled,
+job_step_id,
+job_step_name + ': ' + job_subsystem AS job_step,
+LastRunTime,
+run_status AS RunStatus,
+MIN(NextRunTime) AS NextRunTime
+FROM (
+SELECT  
+j.job_id, 
+j.name AS job_name,
+jst.step_id AS job_step_id,
+jst.step_name AS job_step_name, 
+jst.subsystem AS job_subsystem, 
+jst.command AS job_command,  
+j.enabled AS job_enabled,
+jh.start_execution_date AS LastRunTime,
+jh.run_status,
+js.NextRunTime
+FROM msdb.dbo.sysjobs j
+LEFT JOIN js ON js.job_id = j.job_id
+LEFT JOIN jh ON jh.job_id = j.job_id
+LEFT JOIN msdb.dbo.sysjobsteps jst ON jst.job_id = j.job_id
+WHERE j.category_id <> 100
+AND jh.start_execution_date >= GETDATE()-1
+AND Js.NextRunTime > GETDATE()
+) a
+GROUP BY 
+job_id,
+job_name,
+job_enabled,
+job_step_id,
+job_step_name,
+job_subsystem,
+LastRunTime,
+run_status
+
+
+
+
+
+
+SELECT DISTINCT 
+a.job_id,
+a.job_name,
+a.job_enabled,
+LTRIM(RTRIM(STUFF(( SELECT ', ' + b.job_step FROM @jobInfo b WHERE b.job_id = a.job_id FOR XML PATH ('')), 1,1,'') 
+	 )) AS job_steps,
+a.LastRunTime,
+a.RunStatus,
+a.NextRunTime
+FROM @jobInfo a;
