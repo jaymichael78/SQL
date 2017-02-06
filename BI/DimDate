@@ -1,0 +1,335 @@
+-- Create DimDate
+IF OBJECT_ID (N'DimDate', N'U') IS NOT NULL
+DROP TABLE DimDate;
+GO
+CREATE TABLE DimDate
+(
+    date_key        INT PRIMARY KEY,
+    full_date       DATE NOT NULL,
+    date_name       VARCHAR (50) NOT NULL,
+    year_key        INT NOT NULL,
+    year_name       VARCHAR (7) NOT NULL,
+    quarter_key     INT NOT NULL,
+    quarter_name            VARCHAR(3) NOT NULL,
+    month_key       INT NOT NULL,
+    month_number            INT NOT NULL,
+    month_name      VARCHAR (10) NOT NULL,
+    week_key        INT NOT NULL,
+    week_number     INT NOT NULL,
+    week_num_month          INT NOT NULL,
+    day_of_month            INT NOT NULL,
+    day_num_week            INT NOT NULL,
+    day_name_week           VARCHAR(10) NOT NULL,
+    is_weekday      VARCHAR(1) NOT NULL,
+    is_weekend      VARCHAR(1) NOT NULL,
+    is_workday      VARCHAR(1) NOT NULL,
+    is_holiday      VARCHAR(1) NOT NULL,
+    day_type_name   VARCHAR(20) NOT NULL
+);
+
+
+--Company Holidays
+     -- New Years Day - Jan 1 (If on Sat off on Fri. If on Sun off on Mon.)
+     -- MLK Day - 3rd Monday in Jan
+     -- Memorial Day - Last Mon in May
+     -- July 4th - Jul 4 (If on Sat off on Fri. If on Sun off on Mon.)
+     -- Labor Day - 1st Mon in Sep
+     -- Thanksgiving Day - 4th Thurs in Nov
+     -- Day after Thanksgiving - Day after 4th Thurs in Nov
+     -- Christmas Day - Dec 25 (If on Sat off on Fri. If on Sun off on Mon.)
+SET NOCOUNT ON;
+ 
+-- Create Date Temporary Table
+DECLARE @DateTable AS TABLE
+(   date_key        INT,
+    full_date       DATE,
+    date_name       VARCHAR (50),
+    year_key        INT,
+    year_name       VARCHAR (7),
+    quarter_key     INT,
+    quarter_name            VARCHAR(3),
+    month_key       INT,
+    month_number            INT,
+    month_name      VARCHAR (10),
+    week_key        INT,
+    week_number     INT,
+    week_num_month          INT,
+    day_of_month            INT,
+    day_num_week            INT,
+    day_name_week           VARCHAR(10),
+    is_weekday              VARCHAR(1),
+    is_weekend              VARCHAR(1));
+ 
+-- Create holiday Temporary Table
+DECLARE @holiday_table AS TABLE
+(      date_key                 INT,
+       is_workday               VARCHAR(1),
+       is_holiday               VARCHAR(1),
+       day_type_name            VARCHAR(20));
+ 
+-- Create Parameters
+DECLARE         @date_key       AS INT,
+        @full_date      AS DATE,
+        @date_name      AS VARCHAR(50),
+        @year_key       AS INT,
+        @year_name      AS VARCHAR(7),
+        @quarter_key            AS INT,
+        @quarter_name           AS VARCHAR(3),
+        @month_key      AS INT,
+        @month_number           AS INT,
+        @month_name     AS VARCHAR (10),
+        @week_key       AS INT,
+        @week_number            AS INT,
+        @week_num_month         AS INT,
+        @day_of_month           AS INT,
+        @day_num_week           AS INT,
+        @day_name_week          AS VARCHAR(10),
+        @start_date     AS DATE = '2000-01-01', -- Parameter for datecursor
+        @end_date       AS DATE = '2020-12-31', -- Parameter for datecursor
+        @date           AS DATE, -- Parameter for datecursor
+        @is_weekday             AS VARCHAR(1),
+        @is_weekend     AS VARCHAR(1),
+        @is_workday     AS VARCHAR(1),
+        @is_holiday     AS VARCHAR(1),
+        @day_type_name          AS VARCHAR(20),
+        @year           AS INT, -- Parameter for holidaycursor
+        @start_year     AS INT = 2000, -- Parameter for holidaycursor
+        @end_year       AS INT = 2020; -- Parameter for holidaycursor
+ 
+-- Find dates and add to temporary table
+SET @date = @start_date
+WHILE @date <= @end_date
+BEGIN
+SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
+        ,@full_date= @date
+        ,@date_name = CONCAT(DATENAME(MONTH, @date), ' ', DAY(@date),',', ' ', YEAR(@date))
+        ,@year_key = YEAR(@date)
+        ,@year_name = CONCAT('CY', ' ', YEAR(@date))
+        ,@quarter_key = CAST(CONCAT(YEAR(@date),DATEPART(QUARTER, @date)) AS INT)
+        ,@quarter_name = CONCAT('Q', ' ', DATEPART(QUARTER, @date))
+        ,@month_key = CAST(CONCAT(YEAR(@date), MONTH(@date)) AS INT)
+        ,@month_number = MONTH(@date)
+        ,@month_name = DATENAME(MONTH, @date)
+        ,@week_key = CAST(CONCAT(YEAR(@date), DATENAME(WEEK, @date)) AS INT)
+        ,@week_number = DATENAME(WEEK, @date)
+        ,@week_num_month = DATEDIFF(WEEK, DATEADD(MONTH, DATEDIFF(MONTH, 0, @date), 0), @date) + 1
+        ,@day_of_month = DAY(@date)
+        ,@day_num_week = DATEPART(WEEKDAY, @date)
+        ,@day_name_week = DATENAME(WEEKDAY, @date)
+        ,@is_weekday = CASE WHEN DATENAME(WEEKDAY, @date) NOT IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
+        ,@is_weekend = CASE WHEN DATENAME(WEEKDAY, @date) IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END;
+INSERT INTO @DateTable VALUES
+(@date_key, @full_date, @date_name, @year_key, @year_name, @quarter_key, @quarter_name,
+@month_key, @month_number, @month_name, @week_key, @week_number, @week_num_month, @day_of_month, @day_num_week, @day_name_week,
+@is_weekday, @is_weekend);
+SET @date = DATEADD(DAY, 1, @date);
+END;
+ 
+-- Find New Year
+SET  @year = @start_year WHILE @year <= @end_year
+BEGIN
+SELECT           @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
+        ,@is_workday = 'N'
+        ,@is_holiday = 'Y'
+        ,@day_type_name = 'New Years'
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 1
+        AND DAY(full_date) = 1
+        AND YEAR(full_date) = @year;
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+     SET @year = @year+1  END;
+ 
+-- Find Friday before a Saturday New Year
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, nysat.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'New Years Eve'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 1 AND DAY(full_date) = 1 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS nysat;
+ 
+--Find Monday after a Sunday New Year
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, nysun.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'New Years Day After'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 1 AND DAY(full_date) = 1 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS nysun;
+ 
+-- Find MLK Day
+SET @year = @start_year WHILE @year <= @end_year
+BEGIN
+WITH mlk AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'N' ELSE 'Y' END AS is_workday
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'Y' ELSE 'N' END AS is_holiday
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'MLK Day' ELSE 'Work Day' END AS day_type_name
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 1 
+        AND DATENAME(WEEKDAY, full_date) = 'Monday'
+        AND YEAR(full_date) = @year)
+SELECT @date_key= date_key, @is_workday= is_workday, @is_holiday =  is_holiday, @day_type_name = day_type_name
+FROM mlk
+WHERE is_holiday = 'Y';
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+SET @year = @year+1;
+END;
+ 
+-- Find Memorial Day
+SET @year = @start_year WHILE @year <= @end_year
+BEGIN
+WITH md AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
+            ,DENSE_RANK() OVER (ORDER BY full_date) AS rank_key
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 5 
+        AND DATENAME(WEEKDAY, full_date) = 'Monday'
+        AND YEAR(full_date) = @year)
+SELECT @date_key = date_key
+    , @is_workday = 'N'
+    , @is_holiday = 'Y'
+    , @day_type_name = 'Memorial Day'
+FROM md
+WHERE rank_key = (SELECT MAX(rank_key) FROM md);
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+SET @year = @year+1;
+END;
+ 
+--Find July 4th
+SET  @year = @start_year WHILE @year <= @end_year
+BEGIN
+SELECT  @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
+        ,@is_workday = 'N'
+        ,@is_holiday = 'Y'
+        ,@day_type_name = 'July 4th'
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 7
+        AND DAY(full_date) = 4
+        AND YEAR(full_date) = @year;
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+     SET @year = @year+1  END;
+ 
+-- Find Friday before a Saturday July 4th
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, j4sat.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'July 4th Eve'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 7 AND DAY(full_date) = 4 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS j4sat;
+ 
+--Find Monday after a Sunday July 4th
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, j4sun.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'July 4th Day After'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 7 AND DAY(full_date) = 4 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS j4sun;
+ 
+--Find Labor Day
+SET @year = @start_year WHILE @year <= @end_year
+BEGIN
+WITH ld AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
+            ,DENSE_RANK() OVER (ORDER BY full_date) AS rank_key
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 9
+        AND DATENAME(WEEKDAY, full_date) = 'Monday'
+        AND YEAR(full_date) = @year)
+SELECT @date_key = date_key
+    , @is_workday = 'N'
+    , @is_holiday = 'Y'
+    , @day_type_name = 'Labor Day'
+FROM ld
+WHERE rank_key = (SELECT MIN(rank_key) FROM ld);
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+SET @year = @year+1;
+END;
+ 
+---Find Thanksgiving
+SET @year = @start_year WHILE @year <= @end_year
+BEGIN
+WITH thk AS(SELECT  CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'N' ELSE 'Y' END AS is_workday
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Y' ELSE 'N' END AS is_holiday
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Thanksgiving' ELSE 'Work Day' END AS day_type_name
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 11
+        AND DATENAME(WEEKDAY, full_date) = 'Thursday'
+        AND YEAR(full_date) = @year)
+SELECT @date_key= date_key, @is_workday= is_workday, @is_holiday =  is_holiday, @day_type_name = day_type_name
+FROM thk
+WHERE is_holiday = 'Y';
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+SET @year = @year+1;
+END;
+ 
+--Day After Thanksgiving
+SET @year = @start_year WHILE @year <= @end_year
+BEGIN
+WITH thk AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
+        , full_date AS full_date
+        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Y' ELSE 'N' END AS is_holiday
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 11
+        AND DATENAME(WEEKDAY, full_date) = 'Thursday'
+        AND YEAR(full_date) = @year)
+SELECT @date_key = CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, thk.full_date), 112) AS INT) 
+        ,@is_workday = 'N' 
+        ,@is_holiday = 'Y'
+        ,@day_type_name ='Thanksgiving - Day 2'
+FROM thk 
+WHERE thk.is_holiday = 'Y';
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+SET @year = @year+1;
+END;
+ 
+-- Find Christmas
+SET  @year = @start_year WHILE @year <= @end_year
+BEGIN
+SELECT  @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
+        ,@is_workday = 'N'
+        ,@is_holiday = 'Y'
+        ,@day_type_name = 'Christmas'
+FROM @DateTable
+WHERE
+        MONTH(full_date) = 12
+        AND DAY(full_date) = 25
+        AND YEAR(full_date) = @year;
+INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
+     SET @year = @year+1  END;
+ 
+-- Find Friday before a Saturday Christmas 
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, xmassat.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'Christmas Eve'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 12 AND DAY(full_date) = 25 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS xmassat;
+ 
+--Find Monday after a Sunday Christmas
+INSERT INTO @holiday_table 
+SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, xmassun.full_date), 112) AS INT) 
+        , 'N'
+        , 'Y'
+        , 'Christmas Day After'
+FROM (SELECT full_date AS full_date FROM @DateTable
+WHERE MONTH(full_date) = 12 AND DAY(full_date) = 25 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS xmassun; 
+ 
+--Complete, join and then select INTO
+INSERT INTO DimDate
+SELECT  d.date_key, d.full_date, d.date_name, d.year_key, d.year_name, d.quarter_key, d.quarter_name,
+        d.month_key, d.month_number, d.month_name, d.week_key, d.week_number, d.week_num_month,
+        d.day_of_month, d.day_num_week, d.day_name_week, d.is_weekday, d.is_weekend,
+        ISNULL(h.is_workday, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'N' ELSE 'Y' END) AS is_workday,
+        ISNULL(h.is_holiday, 'N')  AS is_holiday, 
+        ISNULL(h.day_type_name, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Work Day' END) AS day_type_name
+FROM @DateTable d
+    LEFT JOIN @holiday_table h ON d.date_key = h.date_key;
