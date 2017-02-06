@@ -1,11 +1,13 @@
+SET DATEFIRST 1;
 -- Create DimDate
 IF OBJECT_ID (N'DimDate', N'U') IS NOT NULL
 DROP TABLE DimDate;
 GO
 CREATE TABLE DimDate
 (
-    date_key        INT PRIMARY KEY,
+    date_key        INT NOT NULL,
     full_date       DATE NOT NULL,
+	full_datetime	DATETIME2(7) NOT NULL,
     date_name       VARCHAR (50) NOT NULL,
     year_key        INT NOT NULL,
     year_name       VARCHAR (7) NOT NULL,
@@ -24,9 +26,16 @@ CREATE TABLE DimDate
     is_weekend      VARCHAR(1) NOT NULL,
     is_workday      VARCHAR(1) NOT NULL,
     is_holiday      VARCHAR(1) NOT NULL,
-    day_type_name   VARCHAR(20) NOT NULL
+    day_type_name   VARCHAR(20) NOT NULL,
+	mondayOfWeek	DATE NOT NULL,
+	firstDayOfMonth DATE NOT NULL,
+	isToday			INT NOT NULL,
+	is30DaysAgo		INT NOT NULL,
+	is60DaysAgo		INT NOT NULL,
+	is90DaysAgo		INT NOT NULL,
+	is180DaysAgo	INT NOT NULL
+CONSTRAINT pk_DimDate PRIMARY KEY (date_key)
 );
-
 
 --Company Holidays
      -- New Years Day - Jan 1 (If on Sat off on Fri. If on Sun off on Mon.)
@@ -38,11 +47,13 @@ CREATE TABLE DimDate
      -- Day after Thanksgiving - Day after 4th Thurs in Nov
      -- Christmas Day - Dec 25 (If on Sat off on Fri. If on Sun off on Mon.)
 SET NOCOUNT ON;
- 
+--FIGURE OUT TODAY FIRST
+DECLARE @today DATE = GETDATE(); 
 -- Create Date Temporary Table
 DECLARE @DateTable AS TABLE
 (   date_key        INT,
     full_date       DATE,
+	full_datetime	DATETIME2(7) NOT NULL,
     date_name       VARCHAR (50),
     year_key        INT,
     year_name       VARCHAR (7),
@@ -58,7 +69,14 @@ DECLARE @DateTable AS TABLE
     day_num_week            INT,
     day_name_week           VARCHAR(10),
     is_weekday              VARCHAR(1),
-    is_weekend              VARCHAR(1));
+    is_weekend              VARCHAR(1),
+	mondayOfWeek	DATE NOT NULL,
+	firstDayOfMonth DATE NOT NULL,
+	isToday			INT NOT NULL,
+	is30DaysAgo		INT NOT NULL,
+	is60DaysAgo		INT NOT NULL,
+	is90DaysAgo		INT NOT NULL,
+	is180DaysAgo	INT NOT NULL);
  
 -- Create holiday Temporary Table
 DECLARE @holiday_table AS TABLE
@@ -70,6 +88,7 @@ DECLARE @holiday_table AS TABLE
 -- Create Parameters
 DECLARE         @date_key       AS INT,
         @full_date      AS DATE,
+		@full_datetime	AS DATETIME2(7),
         @date_name      AS VARCHAR(50),
         @year_key       AS INT,
         @year_name      AS VARCHAR(7),
@@ -84,17 +103,30 @@ DECLARE         @date_key       AS INT,
         @day_of_month           AS INT,
         @day_num_week           AS INT,
         @day_name_week          AS VARCHAR(10),
-        @start_date     AS DATE = '2000-01-01', -- Parameter for datecursor
-        @end_date       AS DATE = '2020-12-31', -- Parameter for datecursor
+        @start_date     AS DATE = '2013-01-01', -- Parameter for datecursor
+        @end_date       AS DATE = '2033-12-31', -- Parameter for datecursor
         @date           AS DATE, -- Parameter for datecursor
         @is_weekday             AS VARCHAR(1),
         @is_weekend     AS VARCHAR(1),
         @is_workday     AS VARCHAR(1),
         @is_holiday     AS VARCHAR(1),
         @day_type_name          AS VARCHAR(20),
+		@mondayOfWeek	DATE,
+		@firstDayOfMonth DATE,
+		@isToday		INT,
+		@is30DaysAgo		INT,
+		@is60DaysAgo		INT,
+		@is90DaysAgo		INT,
+		@is180DaysAgo	INT,
         @year           AS INT, -- Parameter for holidaycursor
-        @start_year     AS INT = 2000, -- Parameter for holidaycursor
-        @end_year       AS INT = 2020; -- Parameter for holidaycursor
+        @start_year     AS INT = 2013, -- Parameter for holidaycursor
+        @end_year       AS INT = 2033, -- Parameter for holidaycursor
+		@30daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -30, @today)), DATEADD(DAY, -30, @today))), -- FOR is30DaysAgo
+		@60daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -60, @today)), DATEADD(DAY, -60, @today))), -- FOR is60DaysAgo
+		@90daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -90, @today)), DATEADD(DAY, -90, @today))), -- FOR is90DaysAgo
+		@180daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -180, @today)), DATEADD(DAY, -180, @today))); -- FOR is180DaysAgo
+		
+
  
 -- Find dates and add to temporary table
 SET @date = @start_date
@@ -102,6 +134,7 @@ WHILE @date <= @end_date
 BEGIN
 SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
         ,@full_date= @date
+		,@full_datetime= @date
         ,@date_name = CONCAT(DATENAME(MONTH, @date), ' ', DAY(@date),',', ' ', YEAR(@date))
         ,@year_key = YEAR(@date)
         ,@year_name = CONCAT('CY', ' ', YEAR(@date))
@@ -117,11 +150,19 @@ SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
         ,@day_num_week = DATEPART(WEEKDAY, @date)
         ,@day_name_week = DATENAME(WEEKDAY, @date)
         ,@is_weekday = CASE WHEN DATENAME(WEEKDAY, @date) NOT IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
-        ,@is_weekend = CASE WHEN DATENAME(WEEKDAY, @date) IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END;
+        ,@is_weekend = CASE WHEN DATENAME(WEEKDAY, @date) IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
+		,@mondayOfWeek	= DATEADD(DAY, -(DATEPART(DW, @full_date)-1), @full_date)
+		,@firstDayOfMonth =  DATEADD(DAY, -(DAY(@full_date))+1, @full_date)
+		,@isToday		= IIF(@full_date = @today, 1, 0)
+		,@is30DaysAgo  = IIF(@full_date = @30daysAgo, 1, 0)
+		,@is60DaysAgo  = IIF(@full_date = @60daysAgo, 1, 0)
+		,@is90DaysAgo  = IIF(@full_date = @90daysAgo, 1, 0)
+		,@is180DaysAgo = IIF(@full_date = @180daysAgo, 1, 0)
+
 INSERT INTO @DateTable VALUES
-(@date_key, @full_date, @date_name, @year_key, @year_name, @quarter_key, @quarter_name,
+(@date_key, @full_date, @full_datetime, @date_name, @year_key, @year_name, @quarter_key, @quarter_name,
 @month_key, @month_number, @month_name, @week_key, @week_number, @week_num_month, @day_of_month, @day_num_week, @day_name_week,
-@is_weekday, @is_weekend);
+@is_weekday, @is_weekend, @mondayOfWeek, @firstDayOfMonth, @isToday, @is30DaysAgo, @is60DaysAgo, @is90DaysAgo, @is180DaysAgo);
 SET @date = DATEADD(DAY, 1, @date);
 END;
  
@@ -325,11 +366,13 @@ WHERE MONTH(full_date) = 12 AND DAY(full_date) = 25 AND DATENAME(WEEKDAY, full_d
  
 --Complete, join and then select INTO
 INSERT INTO DimDate
-SELECT  d.date_key, d.full_date, d.date_name, d.year_key, d.year_name, d.quarter_key, d.quarter_name,
+SELECT  d.date_key, d.full_date, d.full_datetime, d.date_name, d.year_key, d.year_name, d.quarter_key, d.quarter_name,
         d.month_key, d.month_number, d.month_name, d.week_key, d.week_number, d.week_num_month,
         d.day_of_month, d.day_num_week, d.day_name_week, d.is_weekday, d.is_weekend,
         ISNULL(h.is_workday, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'N' ELSE 'Y' END) AS is_workday,
         ISNULL(h.is_holiday, 'N')  AS is_holiday, 
-        ISNULL(h.day_type_name, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Work Day' END) AS day_type_name
+        ISNULL(h.day_type_name, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Work Day' END) AS day_type_name,
+		d.mondayOfWeek, d.firstDayOfMonth, d.isToday, d.is30DaysAgo, d.is60DaysAgo, d.is90DaysAgo, d.is180DaysAgo
 FROM @DateTable d
     LEFT JOIN @holiday_table h ON d.date_key = h.date_key;
+
