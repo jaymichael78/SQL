@@ -28,7 +28,13 @@ CREATE TABLE DimDate
     is_holiday      VARCHAR(1) NOT NULL,
     day_type_name   VARCHAR(20) NOT NULL,
 	mondayOfWeek	DATE NOT NULL,
+	mondayOfWeek_datetime DATETIME2(7) NOT NULL,
 	firstDayOfMonth DATE NOT NULL,
+	firstDayOfMonth_datetime DATETIME2(7) NOT NULL,
+	yesterday DATE NOT NULL,
+	yesterday_datetime DATETIME2(7) NOT NULL,
+	tomorrow DATE NOT NULL,
+	tomorrow_datetime DATETIME2(7) NOT NULL,
 	isToday			INT NOT NULL,
 	is30DaysAgo		INT NOT NULL,
 	is60DaysAgo		INT NOT NULL,
@@ -72,6 +78,8 @@ DECLARE @DateTable AS TABLE
     is_weekend              VARCHAR(1),
 	mondayOfWeek	DATE NOT NULL,
 	firstDayOfMonth DATE NOT NULL,
+	yesterday		DATE NOT NULL,
+	tomorrow		DATE NOT NULL,
 	isToday			INT NOT NULL,
 	is30DaysAgo		INT NOT NULL,
 	is60DaysAgo		INT NOT NULL,
@@ -113,6 +121,8 @@ DECLARE         @date_key       AS INT,
         @day_type_name          AS VARCHAR(20),
 		@mondayOfWeek	DATE,
 		@firstDayOfMonth DATE,
+		@yesterday DATE,
+		@tomorrow DATE, 
 		@isToday		INT,
 		@is30DaysAgo		INT,
 		@is60DaysAgo		INT,
@@ -153,6 +163,8 @@ SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
         ,@is_weekend = CASE WHEN DATENAME(WEEKDAY, @date) IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
 		,@mondayOfWeek	= DATEADD(DAY, -(DATEPART(DW, @full_date)-1), @full_date)
 		,@firstDayOfMonth =  DATEADD(DAY, -(DAY(@full_date))+1, @full_date)
+		,@yesterday = DATEADD(DAY, -1, @full_date)
+		,@tomorrow = DATEADD(DAY, 1, @full_date)
 		,@isToday		= IIF(@full_date = @today, 1, 0)
 		,@is30DaysAgo  = IIF(@full_date = @30daysAgo, 1, 0)
 		,@is60DaysAgo  = IIF(@full_date = @60daysAgo, 1, 0)
@@ -162,7 +174,7 @@ SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
 INSERT INTO @DateTable VALUES
 (@date_key, @full_date, @full_datetime, @date_name, @year_key, @year_name, @quarter_key, @quarter_name,
 @month_key, @month_number, @month_name, @week_key, @week_number, @week_num_month, @day_of_month, @day_num_week, @day_name_week,
-@is_weekday, @is_weekend, @mondayOfWeek, @firstDayOfMonth, @isToday, @is30DaysAgo, @is60DaysAgo, @is90DaysAgo, @is180DaysAgo);
+@is_weekday, @is_weekend, @mondayOfWeek, @firstDayOfMonth, @yesterday, @tomorrow, @isToday, @is30DaysAgo, @is60DaysAgo, @is90DaysAgo, @is180DaysAgo);
 SET @date = DATEADD(DAY, 1, @date);
 END;
  
@@ -372,7 +384,7 @@ SELECT  d.date_key, d.full_date, d.full_datetime, d.date_name, d.year_key, d.yea
         ISNULL(h.is_workday, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'N' ELSE 'Y' END) AS is_workday,
         ISNULL(h.is_holiday, 'N')  AS is_holiday, 
         ISNULL(h.day_type_name, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Work Day' END) AS day_type_name,
-		d.mondayOfWeek, d.firstDayOfMonth, d.isToday, d.is30DaysAgo, d.is60DaysAgo, d.is90DaysAgo, d.is180DaysAgo
+		d.mondayOfWeek, d.mondayOfWeek, d.firstDayOfMonth, d.firstDayOfMonth, d.yesterday, d.yesterday, d.tomorrow, d.tomorrow, d.isToday, d.is30DaysAgo, d.is60DaysAgo, d.is90DaysAgo, d.is180DaysAgo
 FROM @DateTable d
     LEFT JOIN @holiday_table h ON d.date_key = h.date_key;
 
