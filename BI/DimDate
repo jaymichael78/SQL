@@ -39,9 +39,9 @@ CREATE TABLE DimDate
 	is30DaysAgo		INT NOT NULL,
 	is60DaysAgo		INT NOT NULL,
 	is90DaysAgo		INT NOT NULL,
-	is180DaysAgo	INT NOT NULL
-CONSTRAINT pk_DimDate PRIMARY KEY (date_key)
-);
+	is180DaysAgo	INT NOT NULL,
+ CONSTRAINT pk_DimDate PRIMARY KEY (date_key) 
+)WITH (DATA_COMPRESSION=PAGE) ;
 
 --Company Holidays
      -- New Years Day - Jan 1 (If on Sat off on Fri. If on Sun off on Mon.)
