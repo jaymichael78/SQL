@@ -28,18 +28,18 @@ REPLACE(
 	''
 	EXEC sp_addextendedproperty @name = ''+CHAR(39)+''Description''+CHAR(39)+'',  @value = ''+CHAR(39)+''+''+
 UPPER(LEFT(c.name, 1)) + RTRIM(SUBSTRING(c.name, 2, LEN(c.name))) +
-'' . The data type of the column is ''+
+CASE 
+	WHEN idx.type = 1 AND idxc.column_id = c.column_id THEN  '' is included in the PRIMARY KEY for '' + t.name + '' and''
+	ELSE ''''
+END +
+
+'' is of data type ''+
 ty.name + ''''+
 CASE 
 	WHEN ty.name LIKE ''%char'' THEN ''(''+CONVERT(NVARCHAR(4), c.max_length)+'').''
 	WHEN ty.name = ''datetime2'' THEN ''(''+CONVERT(NVARCHAR(4), c.scale)+'').''
 	ELSE ''.''
-END + '' ''+
-CASE 
-	WHEN idx.type = 1 AND idxc.column_id = c.column_id THEN  ''Included in the PRIMARY KEY for '' + t.name + ''.''
-	ELSE ''''
 END 
-	
 	+''+''+CHAR(39)+'' , 
 	@level0type = ''+CHAR(39)+''Schema''+CHAR(39)+'', @level0name = ''+CHAR(39)+''+''+s.name+''+''+CHAR(39)+'',  
 	@level1type = ''+CHAR(39)+''Table''+CHAR(39)+'',  @level1name = ''+CHAR(39)+''+''+t.name+''+''+CHAR(39)+'',  
