@@ -1,3 +1,4 @@
+
 ALTER PROC [dbo].[uspCreateAddExtendedPropertyStatement]  @dbName VARCHAR (150),  @tableName VARCHAR (150) AS 
 /******************************************************************************
 NAME: uspCreateAddExtendedPropertyStatement
@@ -9,8 +10,8 @@ REVISIONS:
 Ver		Date		Author						Description
 -------	---------	-------------------------	-----------------------------------
 1.0		07/06/2016	J.STEVENS					1. CREATED THIS PROC
-													TICKET# PRJTASK-10797
 2.0		02/09/2017	J.STEVENS					1. ADDED IN COLUMN LEVEL METADATA FOR THE COLUMN DATA TYPE AND INCLUDED IN PRIMARY KEY CONSTRAINTS.
+2.1		02/15/2017	J.STEVENS					1. ADDED IN TABLE LEVEL EXTENDED PROPERTIES CREATION 
 ******************************************************************************/	
 
 BEGIN
@@ -18,7 +19,30 @@ DECLARE @sql VARCHAR (MAX);
 SET @sql = '
 --SET THE DATABASE TO USE
 USE ['+@dbName+'];
---MAIN QUERY
+/***** TABLE LEVEL EXTENDED PROPERTIES *****/
+SELECT 
+t.parent_object_id AS add_extended_property_id,
+NULL AS columnName, 
+t.name AS tableName,
+REPLACE(
+	''
+	EXEC sp_addextendedproperty @name = ''+CHAR(39)+''Description''+CHAR(39)+'',  @value = ''+CHAR(39)+''+''+
+	''The ''+t.name + '' table ''
+
+
+	+''+''+CHAR(39)+'' , 
+	@level0type = ''+CHAR(39)+''Schema''+CHAR(39)+'', @level0name = ''+CHAR(39)+''+''+s.name+''+''+CHAR(39)+'',  
+	@level1type = ''+CHAR(39)+''Table''+CHAR(39)+'',  @level1name = ''+CHAR(39)+''+''+t.name+''+''+CHAR(39)+''; 
+	'' ,
+	''+'', ''''
+	)AS add_extendedproperty_statement
+FROM sys.tables t 
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE t.name = '''+@tableName+'''
+
+
+
+/***** COLUMN LEVEL EXTENDED PROPERTIES *****/
 SELECT
 c.column_id AS add_extended_property_id,
 c.name AS columnName,
