@@ -40,7 +40,8 @@ FROM sys.tables t
 JOIN sys.schemas s ON s.schema_id = t.schema_id
 WHERE t.name = '''+@tableName+'''
 
-
+--FOR A CLEAN SINGLE RESULT SET
+UNION 
 
 /***** COLUMN LEVEL EXTENDED PROPERTIES *****/
 SELECT
