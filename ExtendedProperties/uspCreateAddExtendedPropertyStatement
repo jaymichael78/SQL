@@ -81,7 +81,7 @@ FROM sys.tables t
 	LEFT JOIN sys.index_columns idxc ON idxc.object_id = idx.object_id AND idxc.index_id = idx.index_id AND idxc.column_id = c.column_id
 --NARROW DOWN TO THE HELP WE WANT TO ISOLATE
 WHERE t.name = '''+@tableName+'''
-ORDER BY c.column_id ASC;
+ORDER BY add_extended_property_id ASC;
 '
 EXEC (@sql)
 END
