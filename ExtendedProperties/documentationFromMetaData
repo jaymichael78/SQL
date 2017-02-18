@@ -1,0 +1,44 @@
+DECLARE @dbName NVARCHAR (150),  @objectName NVARCHAR (150), @objectType NVARCHAR(2);
+SET @dbName = N'vCloudAir_Dw'; SET 	@objectName = N'DimDate'; SET @objectType = N'U';
+
+--TABLE DOCUMENTATION
+SELECT t.name AS tableName, des.value AS description
+FROM sys.tables t
+JOIN sys.extended_properties des ON des.major_id = t.object_id AND des.minor_id = 0 AND des.name = 'Description'
+WHERE t.name = @objectName;
+
+--COLUMN DOCUMENTATION
+SELECT 
+c.name AS columnName, 
+CASE 
+	WHEN ty.name IN ('char','varchar','nchar','nvarchar','binary','varbinary')
+		THEN ty.name + '(' + CONVERT(NVARCHAR(4), c.max_length) + ')'
+	WHEN ty.name IN ('float','decimal','numeric','real')
+		THEN ty.name + '(' + CONVERT(NVARCHAR(5), c.precision) + ',' + CONVERT(NVARCHAR(5), c.scale) + ')'
+	ELSE ty.name
+END AS dataType,
+IIF(c.is_nullable = 1, 'Yes', 'No') AS isNullable,
+IIF(idxc.column_id IS NOT NULL, 'Yes', 'No') AS primaryKeyColumn,
+des.value AS description,
+fr.value AS format,
+ex.value AS example
+FROM sys.tables t
+JOIN sys.columns c ON c.object_id = t.object_id
+JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+--DESCRIPTION
+JOIN sys.extended_properties des ON des.major_id = t.object_id AND des.minor_id = c.column_id AND des.name = 'Description'
+--FORMAT
+JOIN sys.extended_properties fr ON fr.major_id = t.object_id AND fr.minor_id = c.column_id AND fr.name = 'Format'
+--EXAMPLE
+JOIN sys.extended_properties ex ON ex.major_id = t.object_id AND ex.minor_id = c.column_id AND ex.name = 'Example'
+--FIND PRIMARY KEY COLUMNS
+LEFT JOIN sys.indexes idx ON idx.object_id = t.object_id
+LEFT JOIN sys.index_columns idxc ON idxc.index_id = idx.index_id AND idxc.object_id = t.object_id AND idxc.column_id = c.column_id
+WHERE t.name = @objectName;
+
+SELECT 'CONSTRAINT ' + f.name + '  FOREIGN KEY ('+COL_NAME(fc.parent_object_id, fc.parent_column_id)+') 
+	REFERENCES '+ OBJECT_NAME (f.referenced_object_id) +' ('+COL_NAME(fc.referenced_object_id, fc.referenced_column_id)+');'
+FROM sys.tables t
+JOIN sys.foreign_keys AS f  ON f.parent_object_id = t.object_id
+JOIN sys.foreign_key_columns AS fc ON f.object_id = fc.constraint_object_id   
+WHERE t.name = @objectName AND f.type = 'F';
