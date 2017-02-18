@@ -1,58 +1,49 @@
+
+
+--SET THE RUNTIME VARAIBLES
 SET DATEFIRST 1;
--- Create DimDate
-IF OBJECT_ID (N'DimDate', N'U') IS NOT NULL
-DROP TABLE DimDate;
-GO
+SET NOCOUNT ON;
+
+/*** CREATE DIMDATE ***/
+BEGIN
+IF OBJECT_ID (N'DimDate', N'U') IS NOT NULL DROP TABLE DimDate;
 CREATE TABLE DimDate
 (
-    date_key        INT NOT NULL,
-    full_date       DATE NOT NULL,
-	full_datetime	DATETIME2(7) NOT NULL,
-    date_name       VARCHAR (50) NOT NULL,
-    year_key        INT NOT NULL,
-    year_name       VARCHAR (7) NOT NULL,
-    quarter_key     INT NOT NULL,
-    quarter_name            VARCHAR(3) NOT NULL,
-    month_key       INT NOT NULL,
-    month_number            INT NOT NULL,
-    month_name      VARCHAR (10) NOT NULL,
-    week_key        INT NOT NULL,
-    week_number     INT NOT NULL,
-    week_num_month          INT NOT NULL,
-    day_of_month            INT NOT NULL,
-    day_num_week            INT NOT NULL,
-    day_name_week           VARCHAR(10) NOT NULL,
-    is_weekday      VARCHAR(1) NOT NULL,
-    is_weekend      VARCHAR(1) NOT NULL,
-    is_workday      VARCHAR(1) NOT NULL,
-    is_holiday      VARCHAR(1) NOT NULL,
-    day_type_name   VARCHAR(20) NOT NULL,
+    dateKey        INT NOT NULL,
+    fullDate       DATE NOT NULL,
+	fullDatetime	DATETIME2(7) NOT NULL,
+    dateName       VARCHAR (50) NOT NULL,
+	yearMonth		VARCHAR(7) NOT NULL,
+    yearKey        INT NOT NULL,
+    yearName       VARCHAR (7) NOT NULL,
+    quarterKey     INT NOT NULL,
+	quarterValue INT NOT NULL,
+    quarterName            VARCHAR(3) NOT NULL,
+    monthKey       INT NOT NULL,
+    monthNumber            INT NOT NULL,
+    monthName      VARCHAR (10) NOT NULL,
+    weekKey        INT NOT NULL,
+    weekNumber     INT NOT NULL,
+    weekNumMonth          INT NOT NULL,
+    dayOfMonth            INT NOT NULL,
+    dayNumWeek            INT NOT NULL,
+    dayNameWeek           VARCHAR(10) NOT NULL,
 	mondayOfWeek	DATE NOT NULL,
-	mondayOfWeek_datetime DATETIME2(7) NOT NULL,
+	mondayOfWeekDatetime DATETIME2(7) NOT NULL,
 	firstDayOfMonth DATE NOT NULL,
-	firstDayOfMonth_datetime DATETIME2(7) NOT NULL,
+	firstDayOfMonthDatetime DATETIME2(7) NOT NULL,
 	yesterday DATE NOT NULL,
-	yesterday_datetime DATETIME2(7) NOT NULL,
+	yesterdayDatetime DATETIME2(7) NOT NULL,
 	tomorrow DATE NOT NULL,
-	tomorrow_datetime DATETIME2(7) NOT NULL,
-	isToday			INT NOT NULL,
-	is30DaysAgo		INT NOT NULL,
-	is60DaysAgo		INT NOT NULL,
-	is90DaysAgo		INT NOT NULL,
-	is180DaysAgo	INT NOT NULL,
- CONSTRAINT pk_DimDate PRIMARY KEY (date_key) 
+	tomorrowDatetime DATETIME2(7) NOT NULL,
+	isToday			BIT NOT NULL,
+	isFirstDayofMonth BIT NOT NULL,
+	isLastDayofMonth BIT NOT NULL
+CONSTRAINT pk_DimDate PRIMARY KEY (dateKey) 
 )WITH (DATA_COMPRESSION=PAGE) ;
+END
 
---Company Holidays
-     -- New Years Day - Jan 1 (If on Sat off on Fri. If on Sun off on Mon.)
-     -- MLK Day - 3rd Monday in Jan
-     -- Memorial Day - Last Mon in May
-     -- July 4th - Jul 4 (If on Sat off on Fri. If on Sun off on Mon.)
-     -- Labor Day - 1st Mon in Sep
-     -- Thanksgiving Day - 4th Thurs in Nov
-     -- Day after Thanksgiving - Day after 4th Thurs in Nov
-     -- Christmas Day - Dec 25 (If on Sat off on Fri. If on Sun off on Mon.)
-SET NOCOUNT ON;
+
 --FIGURE OUT TODAY FIRST
 DECLARE @today DATE = GETDATE(); 
 -- Create Date Temporary Table
@@ -61,12 +52,14 @@ DECLARE @DateTable AS TABLE
     full_date       DATE,
 	full_datetime	DATETIME2(7) NOT NULL,
     date_name       VARCHAR (50),
+	year_month		VARCHAR(7) NOT NULL,
     year_key        INT,
     year_name       VARCHAR (7),
     quarter_key     INT,
-    quarter_name            VARCHAR(3),
+	quarter_value	INT,
+    quarter_name    VARCHAR(3),
     month_key       INT,
-    month_number            INT,
+    month_number    INT,
     month_name      VARCHAR (10),
     week_key        INT,
     week_number     INT,
@@ -74,67 +67,50 @@ DECLARE @DateTable AS TABLE
     day_of_month            INT,
     day_num_week            INT,
     day_name_week           VARCHAR(10),
-    is_weekday              VARCHAR(1),
-    is_weekend              VARCHAR(1),
 	mondayOfWeek	DATE NOT NULL,
 	firstDayOfMonth DATE NOT NULL,
 	yesterday		DATE NOT NULL,
 	tomorrow		DATE NOT NULL,
 	isToday			INT NOT NULL,
-	is30DaysAgo		INT NOT NULL,
-	is60DaysAgo		INT NOT NULL,
-	is90DaysAgo		INT NOT NULL,
-	is180DaysAgo	INT NOT NULL);
+	isFirstDayofMonth INT NOT NULL,
+	isLastDayofMonth INT NOT NULL);
  
--- Create holiday Temporary Table
-DECLARE @holiday_table AS TABLE
-(      date_key                 INT,
-       is_workday               VARCHAR(1),
-       is_holiday               VARCHAR(1),
-       day_type_name            VARCHAR(20));
  
 -- Create Parameters
-DECLARE         @date_key       AS INT,
-        @full_date      AS DATE,
-		@full_datetime	AS DATETIME2(7),
-        @date_name      AS VARCHAR(50),
-        @year_key       AS INT,
-        @year_name      AS VARCHAR(7),
-        @quarter_key            AS INT,
-        @quarter_name           AS VARCHAR(3),
-        @month_key      AS INT,
-        @month_number           AS INT,
-        @month_name     AS VARCHAR (10),
-        @week_key       AS INT,
-        @week_number            AS INT,
-        @week_num_month         AS INT,
-        @day_of_month           AS INT,
-        @day_num_week           AS INT,
-        @day_name_week          AS VARCHAR(10),
-        @start_date     AS DATE = '2013-01-01', -- Parameter for datecursor
-        @end_date       AS DATE = '2033-12-31', -- Parameter for datecursor
-        @date           AS DATE, -- Parameter for datecursor
-        @is_weekday             AS VARCHAR(1),
-        @is_weekend     AS VARCHAR(1),
-        @is_workday     AS VARCHAR(1),
-        @is_holiday     AS VARCHAR(1),
-        @day_type_name          AS VARCHAR(20),
-		@mondayOfWeek	DATE,
-		@firstDayOfMonth DATE,
-		@yesterday DATE,
-		@tomorrow DATE, 
-		@isToday		INT,
-		@is30DaysAgo		INT,
-		@is60DaysAgo		INT,
-		@is90DaysAgo		INT,
-		@is180DaysAgo	INT,
-        @year           AS INT, -- Parameter for holidaycursor
-        @start_year     AS INT = 2013, -- Parameter for holidaycursor
-        @end_year       AS INT = 2033, -- Parameter for holidaycursor
-		@30daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -30, @today)), DATEADD(DAY, -30, @today))), -- FOR is30DaysAgo
-		@60daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -60, @today)), DATEADD(DAY, -60, @today))), -- FOR is60DaysAgo
-		@90daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -90, @today)), DATEADD(DAY, -90, @today))), -- FOR is90DaysAgo
-		@180daysAgo DATE = (SELECT DATEADD(DD, 1 - DATEPART(DW, DATEADD(DAY, -180, @today)), DATEADD(DAY, -180, @today))); -- FOR is180DaysAgo
+DECLARE         
+		@date_key				INT,
+        @full_date				DATE,
+		@full_datetime			DATETIME2(7),
+        @date_name				VARCHAR(50),
+		@year_month		VARCHAR(7),
+        @year_key				INT,
+        @year_name				VARCHAR(7),
+        @quarter_key			INT,
+		@quarter_value			INT,
+        @quarter_name			VARCHAR(3),
+        @month_key				INT,
+        @month_number			INT,
+        @month_name				VARCHAR (10),
+        @week_key				INT,
+        @week_number            INT,
+        @week_num_month         INT,
+        @day_of_month           INT,
+        @day_num_week           INT,
+        @day_name_week          VARCHAR(10),
+		@mondayOfWeek			DATE,
+		@firstDayOfMonth		DATE,
+		@yesterday				DATE,
+		@tomorrow				DATE, 
+		@isToday				INT,
+		@isFirstDayofMonth		INT,
+		@isLastDayofMonth		INT,
+        @start_date				DATE = '2013-01-01', -- Parameter for datecursor
+        @end_date				DATE = '2033-12-31', -- Parameter for datecursor
+        @date					DATE, -- Parameter for datecursor
+	    @year					INT, -- Parameter for holidaycursor
+        @start_year				INT = 2013, -- Parameter for holidaycursor
+        @end_year				INT = 2033; -- Parameter for holidaycursor	
+
 		
 
  
@@ -142,249 +118,546 @@ DECLARE         @date_key       AS INT,
 SET @date = @start_date
 WHILE @date <= @end_date
 BEGIN
-SELECT           @date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT)
-        ,@full_date= @date
-		,@full_datetime= @date
-        ,@date_name = CONCAT(DATENAME(MONTH, @date), ' ', DAY(@date),',', ' ', YEAR(@date))
-        ,@year_key = YEAR(@date)
-        ,@year_name = CONCAT('CY', ' ', YEAR(@date))
-        ,@quarter_key = CAST(CONCAT(YEAR(@date),DATEPART(QUARTER, @date)) AS INT)
-        ,@quarter_name = CONCAT('Q', ' ', DATEPART(QUARTER, @date))
-        ,@month_key = CAST(CONCAT(YEAR(@date), MONTH(@date)) AS INT)
-        ,@month_number = MONTH(@date)
-        ,@month_name = DATENAME(MONTH, @date)
-        ,@week_key = CAST(CONCAT(YEAR(@date), DATENAME(WEEK, @date)) AS INT)
-        ,@week_number = DATENAME(WEEK, @date)
-        ,@week_num_month = DATEDIFF(WEEK, DATEADD(MONTH, DATEDIFF(MONTH, 0, @date), 0), @date) + 1
-        ,@day_of_month = DAY(@date)
-        ,@day_num_week = DATEPART(WEEKDAY, @date)
-        ,@day_name_week = DATENAME(WEEKDAY, @date)
-        ,@is_weekday = CASE WHEN DATENAME(WEEKDAY, @date) NOT IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
-        ,@is_weekend = CASE WHEN DATENAME(WEEKDAY, @date) IN ('Saturday', 'Sunday') THEN 'Y' ELSE 'N' END
-		,@mondayOfWeek	= DATEADD(DAY, -(DATEPART(DW, @full_date)-1), @full_date)
-		,@firstDayOfMonth =  DATEADD(DAY, -(DAY(@full_date))+1, @full_date)
-		,@yesterday = DATEADD(DAY, -1, @full_date)
-		,@tomorrow = DATEADD(DAY, 1, @full_date)
-		,@isToday		= IIF(@full_date = @today, 1, 0)
-		,@is30DaysAgo  = IIF(@full_date = @30daysAgo, 1, 0)
-		,@is60DaysAgo  = IIF(@full_date = @60daysAgo, 1, 0)
-		,@is90DaysAgo  = IIF(@full_date = @90daysAgo, 1, 0)
-		,@is180DaysAgo = IIF(@full_date = @180daysAgo, 1, 0)
+SELECT           
+		@date_key = CAST(CONVERT(VARCHAR(8), @date, 112) as INT),
+        @full_date= @date,
+		@full_datetime= @date,
+        @date_name = CONCAT(DATENAME(MONTH, @date), ' ', DAY(@date),',', ' ', YEAR(@date)),
+        @year_month = CONVERT(VARCHAR(4), YEAR(@date)) + '-'+  RIGHT('0' + RTRIM(MONTH(@date)), 2),
+		@year_key = YEAR(@date),
+        @year_name = CONCAT('CY', ' ', YEAR(@date)),
+        @quarter_key = CAST(CONCAT(YEAR(@date),DATEPART(QUARTER, @date)) AS INT),
+		@quarter_value = DATEPART(QUARTER, @date),
+        @quarter_name = CONCAT('Q', ' ', DATEPART(QUARTER, @date)),
+        @month_key = CAST(CONCAT(YEAR(@date), MONTH(@date)) AS INT),
+        @month_number = MONTH(@date),
+        @month_name = DATENAME(MONTH, @date),
+        @week_key = CAST(CONCAT(YEAR(@date), DATENAME(WEEK, @date)) AS INT),
+        @week_number = DATENAME(WEEK, @date),
+        @week_num_month = DATEDIFF(WEEK, DATEADD(MONTH, DATEDIFF(MONTH, 0, @date), 0), @date) + 1,
+        @day_of_month = DAY(@date),
+        @day_num_week = DATEPART(WEEKDAY, @date),
+        @day_name_week = DATENAME(WEEKDAY, @date),
+		@mondayOfWeek	= DATEADD(DAY, -(DATEPART(DW, @full_date)-1), @full_date),
+		@firstDayOfMonth =  DATEADD(DAY, -(DAY(@full_date))+1, @full_date),
+		@yesterday = DATEADD(DAY, -1, @full_date),
+		@tomorrow = DATEADD(DAY, 1, @full_date),
+		@isToday		= IIF(@full_date = @today, 1, 0),
+		@isFirstDayofMonth = IIF(DAY(@date) = 1, 1, 0),
+		@isLastDayofMonth = IIF(EOMONTH(@date) = @date, 1, 0);
 
 INSERT INTO @DateTable VALUES
-(@date_key, @full_date, @full_datetime, @date_name, @year_key, @year_name, @quarter_key, @quarter_name,
+(@date_key, @full_date, @full_datetime, @date_name, @year_month, @year_key, @year_name, @quarter_value, @quarter_key, @quarter_name,
 @month_key, @month_number, @month_name, @week_key, @week_number, @week_num_month, @day_of_month, @day_num_week, @day_name_week,
-@is_weekday, @is_weekend, @mondayOfWeek, @firstDayOfMonth, @yesterday, @tomorrow, @isToday, @is30DaysAgo, @is60DaysAgo, @is90DaysAgo, @is180DaysAgo);
+@mondayOfWeek, @firstDayOfMonth, @yesterday, @tomorrow, @isToday, @isFirstDayofMonth, @isLastDayofMonth);
 SET @date = DATEADD(DAY, 1, @date);
 END;
- 
--- Find New Year
-SET  @year = @start_year WHILE @year <= @end_year
-BEGIN
-SELECT           @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
-        ,@is_workday = 'N'
-        ,@is_holiday = 'Y'
-        ,@day_type_name = 'New Years'
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 1
-        AND DAY(full_date) = 1
-        AND YEAR(full_date) = @year;
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-     SET @year = @year+1  END;
- 
--- Find Friday before a Saturday New Year
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, nysat.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'New Years Eve'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 1 AND DAY(full_date) = 1 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS nysat;
- 
---Find Monday after a Sunday New Year
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, nysun.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'New Years Day After'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 1 AND DAY(full_date) = 1 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS nysun;
- 
--- Find MLK Day
-SET @year = @start_year WHILE @year <= @end_year
-BEGIN
-WITH mlk AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'N' ELSE 'Y' END AS is_workday
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'Y' ELSE 'N' END AS is_holiday
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 3 THEN 'MLK Day' ELSE 'Work Day' END AS day_type_name
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 1 
-        AND DATENAME(WEEKDAY, full_date) = 'Monday'
-        AND YEAR(full_date) = @year)
-SELECT @date_key= date_key, @is_workday= is_workday, @is_holiday =  is_holiday, @day_type_name = day_type_name
-FROM mlk
-WHERE is_holiday = 'Y';
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-SET @year = @year+1;
-END;
- 
--- Find Memorial Day
-SET @year = @start_year WHILE @year <= @end_year
-BEGIN
-WITH md AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
-            ,DENSE_RANK() OVER (ORDER BY full_date) AS rank_key
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 5 
-        AND DATENAME(WEEKDAY, full_date) = 'Monday'
-        AND YEAR(full_date) = @year)
-SELECT @date_key = date_key
-    , @is_workday = 'N'
-    , @is_holiday = 'Y'
-    , @day_type_name = 'Memorial Day'
-FROM md
-WHERE rank_key = (SELECT MAX(rank_key) FROM md);
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-SET @year = @year+1;
-END;
- 
---Find July 4th
-SET  @year = @start_year WHILE @year <= @end_year
-BEGIN
-SELECT  @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
-        ,@is_workday = 'N'
-        ,@is_holiday = 'Y'
-        ,@day_type_name = 'July 4th'
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 7
-        AND DAY(full_date) = 4
-        AND YEAR(full_date) = @year;
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-     SET @year = @year+1  END;
- 
--- Find Friday before a Saturday July 4th
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, j4sat.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'July 4th Eve'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 7 AND DAY(full_date) = 4 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS j4sat;
- 
---Find Monday after a Sunday July 4th
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, j4sun.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'July 4th Day After'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 7 AND DAY(full_date) = 4 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS j4sun;
- 
---Find Labor Day
-SET @year = @start_year WHILE @year <= @end_year
-BEGIN
-WITH ld AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
-            ,DENSE_RANK() OVER (ORDER BY full_date) AS rank_key
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 9
-        AND DATENAME(WEEKDAY, full_date) = 'Monday'
-        AND YEAR(full_date) = @year)
-SELECT @date_key = date_key
-    , @is_workday = 'N'
-    , @is_holiday = 'Y'
-    , @day_type_name = 'Labor Day'
-FROM ld
-WHERE rank_key = (SELECT MIN(rank_key) FROM ld);
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-SET @year = @year+1;
-END;
- 
----Find Thanksgiving
-SET @year = @start_year WHILE @year <= @end_year
-BEGIN
-WITH thk AS(SELECT  CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'N' ELSE 'Y' END AS is_workday
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Y' ELSE 'N' END AS is_holiday
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Thanksgiving' ELSE 'Work Day' END AS day_type_name
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 11
-        AND DATENAME(WEEKDAY, full_date) = 'Thursday'
-        AND YEAR(full_date) = @year)
-SELECT @date_key= date_key, @is_workday= is_workday, @is_holiday =  is_holiday, @day_type_name = day_type_name
-FROM thk
-WHERE is_holiday = 'Y';
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-SET @year = @year+1;
-END;
- 
---Day After Thanksgiving
-SET @year = @start_year WHILE @year <= @end_year
-BEGIN
-WITH thk AS (SELECT CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) AS date_key
-        , full_date AS full_date
-        ,CASE WHEN DENSE_RANK() OVER (ORDER BY full_date) = 4 THEN 'Y' ELSE 'N' END AS is_holiday
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 11
-        AND DATENAME(WEEKDAY, full_date) = 'Thursday'
-        AND YEAR(full_date) = @year)
-SELECT @date_key = CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, thk.full_date), 112) AS INT) 
-        ,@is_workday = 'N' 
-        ,@is_holiday = 'Y'
-        ,@day_type_name ='Thanksgiving - Day 2'
-FROM thk 
-WHERE thk.is_holiday = 'Y';
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-SET @year = @year+1;
-END;
- 
--- Find Christmas
-SET  @year = @start_year WHILE @year <= @end_year
-BEGIN
-SELECT  @date_key= CAST(CONVERT(VARCHAR(8), full_date, 112) as INT) 
-        ,@is_workday = 'N'
-        ,@is_holiday = 'Y'
-        ,@day_type_name = 'Christmas'
-FROM @DateTable
-WHERE
-        MONTH(full_date) = 12
-        AND DAY(full_date) = 25
-        AND YEAR(full_date) = @year;
-INSERT INTO @holiday_table VALUES (@date_key, @is_workday, @is_holiday, @day_type_name);
-     SET @year = @year+1  END;
- 
--- Find Friday before a Saturday Christmas 
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, -1, xmassat.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'Christmas Eve'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 12 AND DAY(full_date) = 25 AND DATENAME(WEEKDAY, full_date) = 'Saturday') AS xmassat;
- 
---Find Monday after a Sunday Christmas
-INSERT INTO @holiday_table 
-SELECT  CAST(CONVERT(VARCHAR(8), DATEADD(DAY, 1, xmassun.full_date), 112) AS INT) 
-        , 'N'
-        , 'Y'
-        , 'Christmas Day After'
-FROM (SELECT full_date AS full_date FROM @DateTable
-WHERE MONTH(full_date) = 12 AND DAY(full_date) = 25 AND DATENAME(WEEKDAY, full_date) = 'Sunday') AS xmassun; 
- 
---Complete, join and then select INTO
-INSERT INTO DimDate
-SELECT  d.date_key, d.full_date, d.full_datetime, d.date_name, d.year_key, d.year_name, d.quarter_key, d.quarter_name,
-        d.month_key, d.month_number, d.month_name, d.week_key, d.week_number, d.week_num_month,
-        d.day_of_month, d.day_num_week, d.day_name_week, d.is_weekday, d.is_weekend,
-        ISNULL(h.is_workday, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'N' ELSE 'Y' END) AS is_workday,
-        ISNULL(h.is_holiday, 'N')  AS is_holiday, 
-        ISNULL(h.day_type_name, CASE WHEN d.day_name_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Work Day' END) AS day_type_name,
-		d.mondayOfWeek, d.mondayOfWeek, d.firstDayOfMonth, d.firstDayOfMonth, d.yesterday, d.yesterday, d.tomorrow, d.tomorrow, d.isToday, d.is30DaysAgo, d.is60DaysAgo, d.is90DaysAgo, d.is180DaysAgo
-FROM @DateTable d
-    LEFT JOIN @holiday_table h ON d.date_key = h.date_key;
 
+ --Complete, join and then select INTO
+INSERT INTO vCloudAir_DW.dbo.DimDate
+SELECT  d.date_key, d.full_date, d.full_datetime, d.date_name, d.year_month, d.year_key, d.year_name, d.quarter_key, d.quarter_value, d.quarter_name,
+        d.month_key, d.month_number, d.month_name, d.week_key, d.week_number, d.week_num_month,
+        d.day_of_month, d.day_num_week, d.day_name_week, 
+		d.mondayOfWeek, d.mondayOfWeek, d.firstDayOfMonth, d.firstDayOfMonth, d.yesterday, d.yesterday, d.tomorrow, d.tomorrow, d.isToday, d.isFirstDayofMonth, d.isLastDayofMonth
+FROM @DateTable d;
+
+/*** ADD IN EXTENDED PROPERTIES ***/
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = '
+NAME: DimDate
+
+PURPOSE: provides the date grain, trending behavior and date hierachy within the dimensional model. The dimension and facts will join to this table through the date_key column. 
+The DimDate attributes help provide structure, performance, and naming conventions to any reporting or ETL application. Main of the attributes in DimDate are values of the date stored in different formats.
+
+REVISIONS:
+
+Ver		Date		Author						Description
+-------	---------	-------------------------	-----------------------------------
+1.0		MM/DD/YYYY	J.STEVENS		1. CREATED THIS TABLE
+													TICKET# 
+
+' , 
+	@level0type = 'Schema', @level0name = 'dbo',  
+	@level1type = 'Table',  @level1name = 'DimDate'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'DateKey is included in the PRIMARY KEY for DimDate and is of data type int. The date_key format is "YYYYMMDD". Example: 20151008. 
+As the primary key column for DimDate, dateKey will serve as the foreign key reference for the data warehouse tables.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateKey'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'FullDate will typically server as the date friendly name.',
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDate'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'FullDatetime will fill datetime type variables for where clauses. The time portion is set to the start of day time 00:00:00.0000000.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDatetime'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'DateName Quickly allows for reporting friendly names when the standard date notation is needed.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateName'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'YearMonth A reporting friendly name to display the year month name when rollups are needed to the month level.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearMonth'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'YearKey is for roll ups to the year and the year value for a date hierarchy.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearKey'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'YearName is for roll ups to the year and the friendly name for a date hierarchy.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearName'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'QuarterKey is for roll ups to the quarter and the quarter value for a date hierarchy.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterKey'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'QuarterValue is the quarter value for roll ups to the quarter and the quarter value for a date hierarchy.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterValue'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'QuarterName is the quarterfriendly name for roll ups to the quarter and the quarter friendly name for a date hierarchy.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterName'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'MonthKey is for roll ups to the month and the month value for a date hierarchy.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthKey'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'MonthNumber is for roll ups to the month and the month number for a date hierarchy.' ,   
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthNumber'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'MonthName is the friendly name for roll ups to the month and the month friendly name for a date hierarchy' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthName'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'WeekKey is the week of the year key for roll ups to the week and the week key for a date hierarchy.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekKey'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'WeekNumber is the week of the year number and is the week friendly name for roll ups to the week and the week friendly name for a date hierarchy.' ,    
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumber'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'WeekNumMonth is the week of the month for roll ups to the week of the month and the week of the month for a date hierarchy. This attribute will be rarely used.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumMonth'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'DayOfMonth is the day datepart of the specified day.', 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayOfMonth'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'DayNumWeek is the weekday number datepart for the specified date. The first day of the week starts on Monday.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNumWeek'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'DayNameWeek is the weekday name datepart for the specified date. The first day of the week starts on Monday.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNameWeek'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'MondayOfWeek is the friendly name for the 1st day (Monday) of the week. This is used for reporting friendly names that are aggregated to the week.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeek'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'MondayOfWeekDatetime is the friendly name for the 1st day (Monday) of the week. In most cases mondayOfWeekDatetime will fill datetime type variables for where clauses. The time portion is set to the start of day time 00:00:00.0000000.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeekDatetime'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'FirstDayOfMonth is the friendly name for the 1st day of the month. This is used for reporting friendly names that are aggregated to the month.', 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonth'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'FirstDayOfMonthDatetime is the friendly name for the 1st day of the month. In most cases firstDayOfMonthDatetime will fill datetime type variables for where clauses. The time portion is set to the start of day time 00:00:00.0000000.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonthDatetime'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'Yesterday is the friendly name for the specified date''s yesterday date.',   
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterday'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'YesterdayDatetime is the friendly name for the specified date''s yesterday datetime. The time portion is set to the start of day time 00:00:00.0000000.' ,  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterdayDatetime'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'Tomorrow is the friendly name for the specified date''s tomorrow date.',   
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrow'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'TomorrowDatetime is the friendly name for the specified date''s tomorrow datetime. The time portion is set to the start of day time 00:00:00.0000000.' ,   
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrowDatetime'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'IsToday is a flag attribue based on boolean logic that defines if the date is 0(false) or 1(true) today.' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isToday'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'IsFirstDayofMonth is a flag attribue based on boolean logic that defines if the date is 0(false) or 1(true) the first date of the month.',  
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isFirstDayofMonth'; 
+	
+
+EXEC sp_addextendedproperty @name = 'Description',  @value = 'IsLastDayofMonth is a flag attribue based on boolean logic that defines if the date is 0(false) or 1(true) the last date of the month.',   
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isLastDayofMonth'; 
+		
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYYMMDD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDate'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD hh:mm:ss[.fractional seconds]' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'Month Name DD, YYYY' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateName'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'CY YYYY' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearName'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYYQ' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'Q' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterValue'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'Q Q' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterName'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYYMM' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'MM' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthNumber'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'Month Name' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthName'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYYWofY' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'WofY' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumber'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'WofM' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayOfMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'D' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNumWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'DayOfWeek' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNameWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD hh:mm:ss[.fractional seconds]' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeekDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD hh:mm:ss[.fractional seconds]' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonthDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterday'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD hh:mm:ss[.fractional seconds]' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterdayDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrow'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = 'YYYY-MM-DD hh:mm:ss[.fractional seconds]' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrowDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = '#' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isToday'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = '#' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isFirstDayofMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Format',  @value = '#' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isLastDayofMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '20151008' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-08' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDate'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-08 00:00:00.0000000' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'fullDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = 'October 8, 2015' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dateName'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = 'CY 2015' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yearName'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '20154' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '4' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterValue'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = 'Q 4' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'quarterName'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '201510' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '10' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthNumber'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = 'October' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'monthName'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '201541' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekKey'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '41' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumber'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'weekNumMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '8' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayOfMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '4' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNumWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = 'Thursday' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'dayNameWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-05' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeek'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-05 00:00:00.0000000' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'mondayOfWeekDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-01' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-01 00:00:00.0000000' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'firstDayOfMonthDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-07' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterday'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-07 00:00:00.0000000' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'yesterdayDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-10' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrow'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '2015-10-10 00:00:00.0000000' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'tomorrowDatetime'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '0' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isToday'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '0' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isFirstDayofMonth'; 
+	
+EXEC sp_addextendedproperty @name = 'Example',  @value = '0' , 
+@level0type = 'Schema', @level0name = 'dbo',  
+@level1type = 'Table',  @level1name = 'DimDate',  
+@level2type = 'Column', @level2name = 'isLastDayofMonth'; 
+	
