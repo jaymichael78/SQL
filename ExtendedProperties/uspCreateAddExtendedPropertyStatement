@@ -1,6 +1,6 @@
 USE [vCloudAir_DW]
 GO
-/****** Object:  StoredProcedure [dbo].[uspCreateAddExtendedPropertyStatement]    Script Date: 2/21/2017 5:21:38 AM ******/
+/****** Object:  StoredProcedure [dbo].[uspCreateAddExtendedPropertyStatement]    Script Date: 2/22/2017 1:45:23 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -129,7 +129,7 @@ END --END TABLE PORTION
 
 IF @objectType = 'FN'
 BEGIN
-DECLARE @nParameters INT = (SELECT COUNT(p.parameter_id) AS max_parameter_id FROM sys.all_objects ao JOIN sys.parameters p ON p.object_id = ao.object_id WHERE ao.name = ''+@objectName+'')
+DECLARE @nParameters INT = (SELECT COUNT(p.parameter_id) AS max_parameter_id FROM sys.all_objects ao JOIN sys.parameters p ON p.object_id = ao.object_id WHERE ao.name = ''+@objectName+'' AND p.parameter_id != 0)
 /***** FUNCTION LEVEL EXTENDED PROPERTIES *****/
 SELECT 
 ao.parent_object_id AS add_extended_property_id,
@@ -161,6 +161,40 @@ FROM sys.all_objects ao
 JOIN sys.schemas s ON s.schema_id = ao.schema_id
 WHERE ao.name = ''+@objectName+''
 UNION 
+---OUTPUT FORMAT 
+SELECT 
+ao.parent_object_id AS add_extended_property_id,
+NULL AS parameterName, 
+ao.name AS functionName,
+REPLACE(
+	'EXEC sp_addextendedproperty @name = '+CHAR(39)+'OUTPUT PARAMETER FORMAT'+CHAR(39)+',  @value = '+CHAR(39)+'+'+'+'+CHAR(39)+' ,
+	@level0type = '+CHAR(39)+'Schema'+CHAR(39)+', @level0name = '+CHAR(39)+'+'+s.name+'+'+CHAR(39)+',  
+	@level1type = '+CHAR(39)+'Function'+CHAR(39)+',  @level1name = '+CHAR(39)+'+'+ao.name+'+'+CHAR(39)+'; 
+	' ,
+	'+', ''
+	)AS add_extendedproperty_statement
+FROM sys.all_objects ao
+JOIN sys.schemas s ON s.schema_id = ao.schema_id
+WHERE ao.name = ''+@objectName+''
+UNION 
+---OUTPUT EXAMPLE 
+SELECT 
+ao.parent_object_id AS add_extended_property_id,
+NULL AS parameterName, 
+ao.name AS functionName,
+REPLACE(
+	'EXEC sp_addextendedproperty @name = '+CHAR(39)+'OUTPUT PARAMETER EXAMPLE'+CHAR(39)+',  @value = '+CHAR(39)+'+'+'+'+CHAR(39)+' ,
+	@level0type = '+CHAR(39)+'Schema'+CHAR(39)+', @level0name = '+CHAR(39)+'+'+s.name+'+'+CHAR(39)+',  
+	@level1type = '+CHAR(39)+'Function'+CHAR(39)+',  @level1name = '+CHAR(39)+'+'+ao.name+'+'+CHAR(39)+'; 
+	' ,
+	'+', ''
+	)AS add_extendedproperty_statement
+FROM sys.all_objects ao
+JOIN sys.schemas s ON s.schema_id = ao.schema_id
+WHERE ao.name = ''+@objectName+''
+
+
+UNION 
 /***** PARAMETER LEVEL - DESCRIPTION - EXTENDED PROPERTIES *****/
 SELECT
 p.parameter_id AS add_extended_property_id,
@@ -178,7 +212,7 @@ FROM sys.all_objects ao
 	JOIN sys.parameters p ON p.object_id = ao.object_id
 	JOIN sys.schemas s ON s.schema_id = ao.schema_id
 --NARROW DOWN TO THE HELP WE WANT TO ISOLATE
-WHERE ao.name = ''+@objectName+''
+WHERE ao.name = ''+@objectName+'' AND p.parameter_id != 0
 
 
 
@@ -200,7 +234,7 @@ FROM sys.all_objects ao
 	JOIN sys.parameters p ON p.object_id = ao.object_id
 	JOIN sys.schemas s ON s.schema_id = ao.schema_id
 --NARROW DOWN TO THE HELP WE WANT TO ISOLATE
-WHERE ao.name = ''+@objectName+''
+WHERE ao.name = ''+@objectName+'' AND p.parameter_id != 0
 UNION
 /***** PARAMETER LEVEL - EXAMPLE - EXTENDED PROPERTIES *****/
 SELECT
@@ -219,5 +253,5 @@ FROM sys.all_objects ao
 	JOIN sys.parameters p ON p.object_id = ao.object_id
 	JOIN sys.schemas s ON s.schema_id = ao.schema_id
 --NARROW DOWN TO THE HELP WE WANT TO ISOLATE
-WHERE ao.name = ''+@objectName+''
+WHERE ao.name = ''+@objectName+'' AND p.parameter_id != 0
 END
