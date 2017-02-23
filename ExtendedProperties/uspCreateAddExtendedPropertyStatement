@@ -22,21 +22,35 @@ IF @objectType = 'U'
 BEGIN
 DECLARE @numCols INT = (SELECT t.max_column_id_used FROM sys.tables t WHERE t.name = @objectName)
 
-/***** TABLE LEVEL EXTENDED PROPERTIES *****/
+/***** TABLE LEVEL - DESCRIPTION - EXTENDED PROPERTIES *****/
 SELECT 
 t.parent_object_id AS add_extended_property_id,
 NULL AS columnName, 
 t.name AS tableName,
 REPLACE(
 	'EXEC sp_addextendedproperty @name = '+CHAR(39)+'Description'+CHAR(39)+',  @value = '+CHAR(39)+'+'+
-	'
-NAME: '+t.name + '
+	' '
 
-PURPOSE: 
+	+'+'+CHAR(39)+' , 
+	@level0type = '+CHAR(39)+'Schema'+CHAR(39)+', @level0name = '+CHAR(39)+'+'+s.name+'+'+CHAR(39)+',  
+	@level1type = '+CHAR(39)+'Table'+CHAR(39)+',  @level1name = '+CHAR(39)+'+'+t.name+'+'+CHAR(39)+'; 
+	' ,
+	'+', ''
+	)AS add_extendedproperty_statement
+FROM sys.tables t 
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE t.name = ''+@objectName+''
 
-REVISIONS:
+UNION 
 
-Ver		Date		Author						Description
+/***** TABLE LEVEL - REVISIONS - EXTENDED PROPERTIES *****/
+SELECT 
+t.parent_object_id AS add_extended_property_id,
+NULL AS columnName, 
+t.name AS tableName,
+REPLACE(
+	'EXEC sp_addextendedproperty @name = '+CHAR(39)+'Revisions'+CHAR(39)+',  @value = '+CHAR(39)+'+'+
+	'Ver		Date		Author						Description
 -------	---------	-------------------------	-----------------------------------
 1.0		MM/DD/YYYY	FULL NAME(X.LASTNAME)		1. CREATED THIS TABLE
 													TICKET# 
@@ -52,6 +66,7 @@ Ver		Date		Author						Description
 FROM sys.tables t 
 JOIN sys.schemas s ON s.schema_id = t.schema_id
 WHERE t.name = ''+@objectName+''
+
 
 
 UNION
