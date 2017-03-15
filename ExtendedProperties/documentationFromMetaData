@@ -1,5 +1,5 @@
 DECLARE @dbName NVARCHAR (150),  @objectName NVARCHAR (150), @objectType NVARCHAR(2);
-SET @dbName = N''; SET 	@objectName = N'fnGetNDate'; SET @objectType = N'FN';
+SET @dbName = N'vCloudAir_DW'; SET 	@objectName = N'DimDate'; SET @objectType = N'U';
 
 /*** USER TABLE LEVEL ****/
 IF @objectType = 'U'
@@ -11,20 +11,46 @@ JOIN sys.extended_properties des ON des.major_id = t.object_id AND des.minor_id 
 WHERE t.name = @objectName;
 
 --COLUMN DOCUMENTATION
-SELECT 
-c.name AS columnName, 
-CASE 
+
+-- Selection result as HTML 
+DECLARE @html NVARCHAR(MAX), @table NVARCHAR(MAX); 
+SET @html =  
+N'<div class="'+@objectName+'">
+<style>
+th{
+text-align:"left";
+}
+td{
+font-size:10pt;
+}
+</style>
+<table>
+	<thead><tr> 
+		<th>Column</th>
+		<th>Type</th>
+		<th>Nullable?</th>
+		<th>Primary Key</th>
+		<th>Description</th>
+		<th>Format</th>
+		<th>Example</th>
+	</tr></thead>'; 
+
+
+SELECT @table = 
+CONVERT(NVARCHAR(MAX), (SELECT 
+td = c.name, '',
+td = CASE 
 	WHEN ty.name IN ('char','varchar','nchar','nvarchar','binary','varbinary')
 		THEN ty.name + '(' + CONVERT(NVARCHAR(4), c.max_length) + ')'
 	WHEN ty.name IN ('float','decimal','numeric','real')
 		THEN ty.name + '(' + CONVERT(NVARCHAR(5), c.precision) + ',' + CONVERT(NVARCHAR(5), c.scale) + ')'
 	ELSE ty.name
-END AS dataType,
-IIF(c.is_nullable = 1, 'Yes', 'No') AS isNullable,
-IIF(idxc.column_id IS NOT NULL, 'Yes', 'No') AS primaryKeyColumn,
-des.value AS description,
-fr.value AS format,
-ex.value AS example
+END, '',
+td = IIF(c.is_nullable = 1, 'Yes', 'No'), '',
+td = IIF(idxc.column_id IS NOT NULL, 'Yes', 'No'), '',
+td = des.value, '',
+td = fr.value, '',
+td = ex.value
 FROM sys.tables t
 JOIN sys.columns c ON c.object_id = t.object_id
 JOIN sys.types ty ON ty.user_type_id = c.user_type_id
@@ -37,7 +63,15 @@ JOIN sys.extended_properties ex ON ex.major_id = t.object_id AND ex.minor_id = c
 --FIND PRIMARY KEY COLUMNS
 LEFT JOIN sys.indexes idx ON idx.object_id = t.object_id
 LEFT JOIN sys.index_columns idxc ON idxc.index_id = idx.index_id AND idxc.object_id = t.object_id AND idxc.column_id = c.column_id
-WHERE t.name = @objectName;
+WHERE t.name = @objectName
+FOR XML PATH(N'tr'), ROOT(N'tbody'), TYPE ));
+
+
+SET @html =  @html + @table + N'</table></div>'; 
+ 
+-- Final selection to return result. 
+SELECT @html;
+
 
 SELECT 'CONSTRAINT ' + f.name + '  FOREIGN KEY ('+COL_NAME(fc.parent_object_id, fc.parent_column_id)+') 
 	REFERENCES '+ OBJECT_NAME (f.referenced_object_id) +' ('+COL_NAME(fc.referenced_object_id, fc.referenced_column_id)+');'
