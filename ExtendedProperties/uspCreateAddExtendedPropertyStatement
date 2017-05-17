@@ -100,7 +100,7 @@ WHERE t.name = ''+@objectName+''
 
 
 UNION 
-
+/***
 SELECT
 @numCols + c.column_id AS add_extended_property_id,
 c.name AS columnName,
@@ -120,7 +120,7 @@ FROM sys.tables t
 WHERE t.name = ''+@objectName+''
 
 UNION
-
+***/
 SELECT
 (@numCols*2) + c.column_id AS add_extended_property_id,
 c.name AS columnName,
