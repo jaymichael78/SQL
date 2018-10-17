@@ -10,7 +10,10 @@ CASE
 	WHEN par.parameter_name LIKE 'CM.%' THEN 'Connection Manager'
     ELSE 'Parameter'     
 END as type , 
-par.parameter_name AS parameterName, 
+CASE 
+	WHEN par.parameter_name LIKE 'CM.%' THEN SUBSTRING(par.parameter_name, 4, LEN(par.parameter_name))
+	ELSE par.parameter_name
+END AS parameterName,
 par.parameter_data_type AS parameterDataType,
 CASE
 	WHEN par.referenced_variable_name IS NOT NULL THEN 1
